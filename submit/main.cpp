@@ -3,7 +3,7 @@ using namespace std;
 
 class BTreeNode {
 public:
-    int* keys;           
+    int* keys;
     BTreeNode** children; // 자식 노드 포인터 배열
     int size;               // 현재 키 개수
     bool isLeaf;         // 리프 노드 여부
@@ -51,7 +51,7 @@ private:
     }
 
     // 리프 노드나 내부 노드에 키를 삽입
-    void insertKey(BTreeNode*& node, int key, bool& success) { 
+    void insertKey(BTreeNode*& node, int key, bool& success) {
         int i = node->size - 1;
         if (node->isLeaf) {
 
@@ -86,7 +86,7 @@ private:
                     success = false; // 중복 키 발견 시
                     return;
                 }
-                 
+
                 insertKey(node->children[i], key, success);
                 if (!success) return;
                 splitNode(node, i);
@@ -94,7 +94,7 @@ private:
                     i++;
                 }
                 return;
-            }           
+            }
 
             insertKey(node->children[i], key, success);
             if (!success) return;
@@ -287,8 +287,8 @@ private:
             parent->children[i + 1] = parent->children[i + 2];
         }
 
-        parent->size--; 
-        delete sibling; 
+        parent->size--;
+        delete sibling;
     }
 
     bool redistributeKeys(BTreeNode* parent, int idx) {
@@ -410,7 +410,7 @@ public:
         }
         return os;
     }
-  
+
     void clear() {
         if (root) {
             root->clear(); // 재귀적으로 모든 노드 삭제
@@ -428,7 +428,7 @@ int main() {
     BTree tree(4); // B-Tree 차수 4 (최대 3개의 키를 가질 수 있음)
     char command;
     int key;
-
+    cout << "hello" << endl;
     while (cin >> command >> key) {
         switch (command) {
             case 'i': { // 삽입
