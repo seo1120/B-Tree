@@ -3,126 +3,174 @@ using namespace std;
 
 class BTreeNode {
 public:
-    int* keys;
-    BTreeNode** children;
-    int size;
-    bool isLeaf;
-
+    int* keys;           
+    BTreeNode** children; // 자식 노드 포인터 배열
+    int size;               // 현재 키 개수
+    bool isLeaf;         // 리프 노드 여부
+    // 생성자
     BTreeNode(int maxKeys, bool leaf) {
-        keys = new int[maxKeys];
-        children = new BTreeNode * [maxKeys + 1]{ nullptr };
+        keys = new int[maxKeys ];
+        children = new BTreeNode * [maxKeys + 1];
         size = 0;
         isLeaf = leaf;
     }
-
+    // 소멸자
     ~BTreeNode() {
-        delete[] keys;
-        delete[] children;
+        delete[] keys;  // keys 배열 해제
+        delete[] children;  // children 배열 해제
     }
 
+       // 재귀적으로 자식 노드와 자신을 삭제하는 함수
     void clear() {
-        if (!isLeaf) {
-            for (int i = 0; i <= size; i++) {
-                if (children[i]) {
-                    children[i]->clear();
-                    delete children[i];
-                    children[i] = nullptr;
-                }
+        for (int i = 0; i <= size; i++) {
+            if (children[i]) {
+                children[i]->clear(); // 자식 노드 삭제
+                delete children[i];   // 자식 노드 객체 삭제
             }
         }
     }
+
 };
 
 class BTree {
 private:
     BTreeNode* root;
-    int m; // B-Tree의 차수 (최대 자식 수)
-
-    void insertNonFull(BTreeNode* node, int key) {
-        int i = node->size - 1;
-
-        if (node->isLeaf) {
-            while (i >= 0 && node->keys[i] > key) {
-                node->keys[i + 1] = node->keys[i];
-                i--;
+    int m; // B-Tree의 차수
+    bool searchPath(BTreeNode*& node, int key, int& idx) // 스택대신 idx씀 재귀기 때문에
+    {
+        while (idx >= 0 && key <= node->keys[idx]) {
+            if (key == node->keys[idx]) {
+                return false;
             }
-
-            node->keys[i + 1] = key;
-            node->size++;
+            node->keys[idx + 1] = node->keys[idx];
+            idx--;
         }
-        else {
-            while (i >= 0 && node->keys[i] > key) {
-                i--;
+        node->keys[idx + 1] = key;
+        node->size++;
+        return true;
+    }
+
+    // 리프 노드나 내부 노드에 키를 삽입
+    void insertKey(BTreeNode*& node, int key, bool& success) { 
+        int i = node->size - 1;
+        if (node->isLeaf) {
+
+            if (!searchPath(node, key, i))
+            {
+                success = false;
+                return;
             }
-            i++;
-
-            if (node->children[i]->size == m - 1) {
-                splitChild(node, i);
-
-                if (node->keys[i] < key) {
-                    i++;
+            if (node->size > m - 1) {
+                // 노드가 꽉 찼을 경우 분할 처리
+                if (node == root) {
+                    BTreeNode* newNode = new BTreeNode(m, false);
+                    newNode->children[0] = node;
+                    splitNode(newNode, 0);
+                    node = newNode;  // 이제 node가 변경되므로 root도 변경됨
                 }
             }
-            insertNonFull(node->children[i], key);
-        }
-    }
-
-    void splitChild(BTreeNode* parent, int index) {
-        BTreeNode* child = parent->children[index];
-        BTreeNode* newChild = new BTreeNode(m, child->isLeaf);
-        int t = (m - 1) / 2;
-
-        newChild->size = t;
-
-        for (int i = 0; i < t; i++) {
-            newChild->keys[i] = child->keys[i + t + 1];
-        }
-
-        if (!child->isLeaf) {
-            for (int i = 0; i <= t; i++) {
-                newChild->children[i] = child->children[i + t + 1];
-            }
-        }
-
-        child->size = t;
-
-        for (int i = parent->size; i >= index + 1; i--) {
-            parent->children[i + 1] = parent->children[i];
-        }
-        parent->children[index + 1] = newChild;
-
-        for (int i = parent->size - 1; i >= index; i--) {
-            parent->keys[i + 1] = parent->keys[i];
-        }
-        parent->keys[index] = child->keys[t];
-        parent->size++;
-    }
-
-    void inorder(BTreeNode* node, ostream& os) const {
-        if (node->isLeaf) {
-            for (int i = 0; i < node->size; i++) {
-                os << " " << node->keys[i];
-            }
         }
         else {
-            os << "<";
-            for (int i = 0; i < node->size; i++) {
-                inorder(node->children[i], os);
-                os << " " << node->keys[i];
+            // 내부 노드 처리
+            while (i >= 0 && key < node->keys[i]) {
+                i--;
             }
+            if (key == node->keys[i]) {
+                success = false; // 중복 키 발견 시
+                return;
+            }
+            i++;
+            if (node->children[i]->size == m - 1 && node->children[i]->isLeaf) {
+                // 자식이 꽉 찼을 경우
+                if (key == node->keys[i]) {
+                    success = false; // 중복 키 발견 시
+                    return;
+                }
+                 
+                insertKey(node->children[i], key, success);
+                if (!success) return;
+                splitNode(node, i);
+                if (key > node->keys[i]) {
+                    i++;
+                }
+                return;
+            }           
+
+            insertKey(node->children[i], key, success);
+            if (!success) return;
+            if (node->children[i]->size > m-1)
+            {
+                splitNode(node, i);
+            }
+
+        }
+    }
+
+    // 자식 노드 분할
+    void splitNode(BTreeNode* parent, int index) {
+        BTreeNode* child = parent->children[index];
+        int mid = m / 2; // 중간값 인덱스
+        BTreeNode* newChild = new BTreeNode(m, child->isLeaf);
+
+        // 새로운 자식 노드에 중간값 이후 키와 자식 복사
+        newChild->size = child->size - mid - 1;
+        for (int i = 0; i < newChild->size; i++) {
+            newChild->keys[i] = child->keys[mid + 1 + i];
+        }
+        if (!child->isLeaf) {
+            for (int i = 0; i <= newChild->size; i++) {
+                newChild->children[i] = child->children[mid + 1 + i];
+            }
+        }
+
+        // 자식 노드의 키 개수 업데이트
+        child->size = mid;
+
+        // 부모 노드에 새로운 키와 자식 추가
+        for (int i = parent->size; i > index; i--) {
+            parent->children[i + 1] = parent->children[i];
+            parent->keys[i] = parent->keys[i - 1];
+        }
+
+        parent->keys[index] = child->keys[mid];  // 중간값을 부모로 올림
+        parent->children[index + 1] = newChild;
+        parent->size++;
+
+        // 부모 노드가 꽉 찼을 경우 처리
+        if (parent->size >= m) {
+            if (parent == root) {
+                BTreeNode* newRoot = new BTreeNode(m, false);
+                newRoot->children[0] = parent;
+                splitNode(newRoot, 0);
+                root = newRoot;
+            }
+        }
+    }
+
+    // 트리를 중위 순회하여 출력
+    void inorder(BTreeNode* node, ostream& os) const {
+        os << "<";
+
+        for (int i = 0; i < node->size; i++) {
+            // 자식이 리프가 아닐 경우 자식 노드를 먼저 순회
+            if (!node->isLeaf) {
+                inorder(node->children[i], os);
+            }
+            // 현재 키를 출력
+            os << " " << node->keys[i];
+            if (i == node->size - 1 || !node->isLeaf)
+                os << " ";
+        }
+
+        // 마지막 자식 노드를 순회
+        if (!node->isLeaf) {
             inorder(node->children[node->size], os);
-            os << ">";
         }
+
+        os << ">";
     }
 
-    int getPredecessor(BTreeNode* node) {
-        BTreeNode* current = node;
-        while (!current->isLeaf) {
-            current = current->children[current->size];
-        }
-        return current->keys[current->size - 1];
-    }
-
+    // 삭제부분
     int getSuccessor(BTreeNode* node) {
         BTreeNode* current = node;
         while (!current->isLeaf) {
@@ -130,36 +178,46 @@ private:
         }
         return current->keys[0];
     }
-
-    void deleteKey(BTreeNode* node, int key, bool& success) {
-        int idx = 0;
-        while (idx < node->size && node->keys[idx] < key) {
+    void searchPathDel(BTreeNode*& node, int key, int& idx) // 재귀를 통해서 진행하기에 insert랑 조금 다름
+    {
+        while (idx < node->size && key > node->keys[idx]) {
             idx++;
         }
-
+    }
+    void bestSibling(BTreeNode*& node, int key, int idx, bool& retribute, bool& success)
+    {
+        if (node->children[idx + 1]->size > 1 || !node->children[idx + 1]->isLeaf) {
+            int succKey = getSuccessor(node->children[idx + 1]);
+            node->keys[idx] = succKey;
+            deleteKey(node->children[idx + 1], succKey, retribute, success);
+        }
+        else if (node->children[idx]->size >= 1 || !node->children[idx]->isLeaf) {
+            BTreeNode* pred = node->children[idx];
+            while (!pred->isLeaf) {
+                pred = pred->children[pred->size];
+            }
+            int predKey = pred->keys[pred->size - 1];
+            node->keys[idx] = predKey;
+            deleteKey(node->children[idx], predKey, retribute, success);
+        }
+        else {
+            mergeNode(node, idx);
+            deleteKey(node->children[idx], key, retribute, success);
+        }
+    }
+    // 키 삭제
+    void deleteKey(BTreeNode*& node, int key, bool& retribute, bool& success) {
+        int idx = 0;
+        searchPathDel(node, key, idx);
         if (idx < node->size && node->keys[idx] == key) {
             if (node->isLeaf) {
                 for (int i = idx; i < node->size - 1; i++) {
                     node->keys[i] = node->keys[i + 1];
                 }
                 node->size--;
-                success = true;
             }
             else {
-                if (node->children[idx]->size >= (m + 1) / 2) {
-                    int predKey = getPredecessor(node->children[idx]);
-                    node->keys[idx] = predKey;
-                    deleteKey(node->children[idx], predKey, success);
-                }
-                else if (node->children[idx + 1]->size >= (m + 1) / 2) {
-                    int succKey = getSuccessor(node->children[idx + 1]);
-                    node->keys[idx] = succKey;
-                    deleteKey(node->children[idx + 1], succKey, success);
-                }
-                else {
-                    mergeNode(node, idx);
-                    deleteKey(node->children[idx], key, success);
-                }
+                bestSibling(node, key, idx, retribute, success);
             }
         }
         else {
@@ -168,62 +226,117 @@ private:
                 return;
             }
 
-            bool flag = ((idx == node->size) ? true : false);
-
-            if (node->children[idx]->size < (m + 1) / 2) {
-                fill(node, idx);
+            int mergetflag = false;
+            if (node->children[idx]->keys[0] == key && node->children[idx]->size == 1 && node->children[idx]->isLeaf) {
+                if (redistributeKeys(node, idx)) mergetflag = true;
             }
 
-            if (flag && idx > node->size) {
-                deleteKey(node->children[idx - 1], key, success);
+
+
+            bool flag = (idx == node->size);
+            if ((flag && idx > node->size) || mergetflag) {
+                deleteKey(node->children[idx - 1], key, retribute, success);
             }
             else {
-                deleteKey(node->children[idx], key, success);
+                deleteKey(node->children[idx], key, retribute, success);
             }
         }
+
+        if (retribute)
+        {
+            for(int i =0; i< node->size + 1;i++)
+            {
+                if (node->children[i]->size == 0 && node->children[i]->children[0]->size != 0)
+                {
+                    redistributeKeys(node,i);
+                    retribute = false;
+                }
+            }
+        }
+        if (node->size == 0 && !node->isLeaf)
+        {
+            retribute = true;
+        }
+
     }
 
-    void fill(BTreeNode* node, int idx) {
-        if (idx != 0 && node->children[idx - 1]->size >= (m + 1) / 2) {
-            borrowFromPrev(node, idx);
+    // 병합 처리
+    void mergeNode(BTreeNode* parent, int idx) {
+        // 병합 대상: parent->children[idx]와 parent->children[idx+1]
+        BTreeNode* child = parent->children[idx];
+        BTreeNode* sibling = parent->children[idx + 1];
+
+        child->keys[child->size] = parent->keys[idx];
+
+        // 형제 노드의 키를 병합
+        for (int i = 0; i < sibling->size; i++) {
+            child->keys[child->size + 1 + i] = sibling->keys[i];
         }
-        else if (idx != node->size && node->children[idx + 1]->size >= (m + 1) / 2) {
-            borrowFromNext(node, idx);
+
+        // 형제 노드의 자식을 병합 (리프 노드가 아니면)
+        if (!child->isLeaf) {
+            for (int i = 0; i <= sibling->size; i++) {
+                child->children[child->size + 1 + i] = sibling->children[i];
+            }
+        }
+
+        child->size += sibling->size + 1;
+
+        for (int i = idx; i < parent->size - 1; i++) {
+            parent->keys[i] = parent->keys[i + 1];
+            parent->children[i + 1] = parent->children[i + 2];
+        }
+
+        parent->size--; 
+        delete sibling; 
+    }
+
+    bool redistributeKeys(BTreeNode* parent, int idx) {
+        int leftnum =  (idx > 0) ? parent->children[idx - 1]->size : 0;
+        int rightnum = (idx < parent->size) ? parent->children[idx + 1]->size : 0;
+
+        if (idx > 0 && leftnum >= rightnum && parent->children[idx - 1]->size >= (m + 1) / 2)
+        {
+            borrowFromPrev(parent, idx);
+        }
+        else if (idx < parent->size &&  parent->children[idx + 1]->size >= (m + 1) / 2)
+        {
+            borrowFromNext(parent, idx);
         }
         else {
-            if (idx != node->size) {
-                mergeNode(node, idx);
+            if (idx != 0) {
+                mergeNode(parent, idx - 1);
+                return true;
             }
             else {
-                mergeNode(node, idx - 1);
+                mergeNode(parent, idx);
+                return false;
             }
         }
+        return false;
     }
 
     void borrowFromPrev(BTreeNode* parent, int idx) {
         BTreeNode* child = parent->children[idx];
         BTreeNode* sibling = parent->children[idx - 1];
 
-        for (int i = child->size - 1; i >= 0; --i) {
+        for (int i = child->size - 1; i >= 0; i--) {
             child->keys[i + 1] = child->keys[i];
         }
-
         if (!child->isLeaf) {
-            for (int i = child->size; i >= 0; --i) {
+            for (int i = child->size; i >= 0; i--) {
                 child->children[i + 1] = child->children[i];
             }
         }
 
         child->keys[0] = parent->keys[idx - 1];
-
         if (!child->isLeaf) {
             child->children[0] = sibling->children[sibling->size];
         }
 
         parent->keys[idx - 1] = sibling->keys[sibling->size - 1];
-
-        child->size += 1;
-        sibling->size -= 1;
+        child->size++;
+        sibling->size--;
     }
 
     void borrowFromNext(BTreeNode* parent, int idx) {
@@ -231,118 +344,49 @@ private:
         BTreeNode* sibling = parent->children[idx + 1];
 
         child->keys[child->size] = parent->keys[idx];
-
-        if (!(child->isLeaf)) {
+        if (!child->isLeaf) {
             child->children[child->size + 1] = sibling->children[0];
         }
-
         parent->keys[idx] = sibling->keys[0];
 
-        for (int i = 1; i < sibling->size; ++i) {
-            sibling->keys[i - 1] = sibling->keys[i];
+        for (int i = 0; i < sibling->size - 1; i++) {
+            sibling->keys[i] = sibling->keys[i + 1];
         }
-
         if (!sibling->isLeaf) {
-            for (int i = 1; i <= sibling->size; ++i) {
-                sibling->children[i - 1] = sibling->children[i];
+            for (int i = 0; i < sibling->size; i++) {
+                sibling->children[i] = sibling->children[i + 1];
             }
         }
-
-        child->size += 1;
-        sibling->size -= 1;
-    }
-
-    void mergeNode(BTreeNode* parent, int idx) {
-        BTreeNode* child = parent->children[idx];
-        BTreeNode* sibling = parent->children[idx + 1];
-
-        // 부모의 키를 자식 노드로 가져옴
-        child->keys[child->size] = parent->keys[idx];
-
-        // 형제 노드의 키를 자식 노드로 복사
-        for (int i = 0; i < sibling->size; ++i) {
-            child->keys[child->size + 1 + i] = sibling->keys[i];
-        }
-
-        if (!child->isLeaf) {
-            for (int i = 0; i <= sibling->size; ++i) {
-                child->children[child->size + 1 + i] = sibling->children[i];
-            }
-        }
-
-        child->size += sibling->size + 1;
-
-        for (int i = idx + 1; i < parent->size; ++i) {
-            parent->keys[i - 1] = parent->keys[i];
-            parent->children[i] = parent->children[i + 1];
-        }
-
-        parent->size--;
-
-        delete sibling;
+        child->size++;
+        sibling->size--;
     }
 
 public:
-    BTree(int _m) : root(nullptr), m(_m) {}
+    BTree(int _m) : m(_m), root(nullptr) {}
 
     bool insertBT(int key) {
+        bool success = true;
+
         if (!root) {
             root = new BTreeNode(m, true);
             root->keys[0] = key;
             root->size = 1;
-            return true;
         }
         else {
-            if (searchKey(root, key)) {
-                return false; // 이미 존재하는 키
-            }
-
-            if (root->size == m - 1) {
-                BTreeNode* newRoot = new BTreeNode(m, false);
-                newRoot->children[0] = root;
-                splitChild(newRoot, 0);
-
-                int i = 0;
-                if (newRoot->keys[0] < key) {
-                    i++;
-                }
-                insertNonFull(newRoot->children[i], key);
-
-                root = newRoot;
-            }
-            else {
-                insertNonFull(root, key);
-            }
-            return true;
+            insertKey(root, key, success);  // 이제 root를 참조로 전달
         }
-    }
-
-    bool searchKey(BTreeNode* node, int key) {
-        int i = 0;
-        while (i < node->size && key > node->keys[i]) {
-            i++;
-        }
-
-        if (i < node->size && node->keys[i] == key) {
-            return true;
-        }
-
-        if (node->isLeaf) {
-            return false;
-        }
-        else {
-            return searchKey(node->children[i], key);
-        }
+        return success;
     }
 
     bool deleteBT(int key) {
         if (!root) {
             return false;
         }
+        bool retribute = false;
+        bool success = true;
+        deleteKey(root, key, retribute, success);
 
-        bool success = false;
-        deleteKey(root, key, success);
-
+        // 루트가 비어 있으면 삭제
         if (root->size == 0) {
             BTreeNode* temp = root;
             if (root->isLeaf) {
@@ -353,26 +397,25 @@ public:
             }
             delete temp;
         }
-
         return success;
     }
 
+    // 트리를 중위 순회하여 출력하는 연산자 오버로딩
     friend ostream& operator<<(ostream& os, const BTree& tree) {
         if (tree.root) {
             tree.inorder(tree.root, os);
-            os << endl;
         }
         else {
-            os << endl;
+            os << "";
         }
         return os;
     }
-
+  
     void clear() {
         if (root) {
-            root->clear();
-            delete root;
-            root = nullptr;
+            root->clear(); // 재귀적으로 모든 노드 삭제
+            delete root;   // 루트 삭제
+            root = nullptr; // 루트 포인터 초기화
         }
     }
 
@@ -382,24 +425,24 @@ public:
 };
 
 int main() {
-    BTree tree(4); // B-Tree 차수 4
+    BTree tree(4); // B-Tree 차수 4 (최대 3개의 키를 가질 수 있음)
     char command;
     int key;
 
     while (cin >> command >> key) {
         switch (command) {
-            case 'i': {
+            case 'i': { // 삽입
                 if (tree.insertBT(key)) {
-                    cout << tree;
+                    cout << tree << endl;
                 }
                 else {
                     cout << "i " << key << ": The key already exists" << endl;
                 }
                 break;
             }
-            case 'd': {
+            case 'd': { // 삭제
                 if (tree.deleteBT(key)) {
-                    cout << tree;
+                    cout << tree << endl;
                 }
                 else {
                     cout << "d " << key << ": The key does not exist" << endl;
