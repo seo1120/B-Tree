@@ -402,12 +402,12 @@ int main() {
     while (cin >> command >> key) {
         switch (command) {
         case 'i':
-            tree.insertBT(key);
-            cout << tree << endl;
+            if (tree.insertBT(key))
+               cout << tree << endl;
             break;
         case 'd':
-            tree.deleteBT(key);
-            cout << tree << endl;
+            if (tree.deleteBT(key))
+                cout << tree << endl;
             break;
         default:
             cout << "Invalid command! Use 'i' for insert or 'd' for delete." << endl;
