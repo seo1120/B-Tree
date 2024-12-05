@@ -9,7 +9,7 @@ public:
     bool isLeaf;         // 리프 노드 여부
     // 생성자
     BTreeNode(int maxKeys, bool leaf) {
-        keys = new int[maxKeys ];
+        keys = new int[maxKeys + 1];
         children = new BTreeNode * [maxKeys + 1];
         size = 0;
         isLeaf = leaf;
@@ -19,15 +19,12 @@ public:
         delete[] keys;  // keys 배열 해제
         delete[] children;  // children 배열 해제
     }
-
-       // 재귀적으로 자식 노드와 자신을 삭제하는 함수
-    void clear() {
-        for (int i = 0; i <= size; i++) {
-            if (children[i]) {
-                children[i]->clear(); // 자식 노드 삭제
-                delete children[i];   // 자식 노드 객체 삭제
-            }
+    void clearNode(BTreeNode*& node){
+        for(int i =0; i< node->size;i++)
+        {
+            clearNode(node->children[i]);
         }
+        delete node;
     }
 
 };
@@ -410,17 +407,14 @@ public:
         }
         return os;
     }
-  
-    void clear() {
-        if (root) {
-            root->clear(); // 재귀적으로 모든 노드 삭제
-            delete root;   // 루트 삭제
-            root = nullptr; // 루트 포인터 초기화
-        }
+    void clear()
+    {
+        root->clearNode(root);
+        //delete root; // delete root하면 안쪽 변수들 소멸자로 인해 사라짐
     }
 
     ~BTree() {
-        clear();
+        delete root; // 일단 둠
     }
 };
 
