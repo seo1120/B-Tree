@@ -19,12 +19,15 @@ public:
         delete[] keys;  // keys 배열 해제
         delete[] children;  // children 배열 해제
     }
-    void clearNode(BTreeNode*& node){
-        for(int i =0; i< node->size;i++)
-        {
-            clearNode(node->children[i]);
+
+       // 재귀적으로 자식 노드와 자신을 삭제하는 함수
+    void clear() {
+        for (int i = 0; i <= size; i++) {
+            if (children[i]) {
+                children[i]->clear(); // 자식 노드 삭제
+                delete children[i];   // 자식 노드 객체 삭제
+            }
         }
-        delete node;
     }
 
 };
@@ -407,14 +410,17 @@ public:
         }
         return os;
     }
-    void clear()
-    {
-        root->clearNode(root);
-        //delete root; // delete root하면 안쪽 변수들 소멸자로 인해 사라짐
+  
+    void clear() {
+        if (root) {
+            root->clear(); // 재귀적으로 모든 노드 삭제
+            delete root;   // 루트 삭제
+            root = nullptr; // 루트 포인터 초기화
+        }
     }
 
     ~BTree() {
-        delete root; // 일단 둠
+        clear();
     }
 };
 
