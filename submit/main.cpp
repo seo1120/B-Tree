@@ -11,6 +11,9 @@ public:
     BTreeNode(int maxKeys, bool leaf) {
         keys = new int[maxKeys];
         children = new BTreeNode * [maxKeys + 1];
+        for (int i = 0; i <= maxKeys; i++) {
+            children[i] = nullptr;
+        }
         size = 0;
         isLeaf = leaf;
     }
@@ -36,6 +39,7 @@ class BTree {
 private:
     BTreeNode* root;
     int m; // B-Tree의 차수
+
     bool searchPath(BTreeNode*& node, int key, int& idx) // 스택대신 idx씀 재귀기 때문에
     {
         while (idx >= 0 && key <= node->keys[idx]) {
@@ -54,7 +58,6 @@ private:
     void insertKey(BTreeNode*& node, int key, bool& success) { 
         int i = node->size - 1;
         if (node->isLeaf) {
-
             if (!searchPath(node, key, i))
             {
                 success = false;
@@ -75,18 +78,18 @@ private:
             while (i >= 0 && key < node->keys[i]) {
                 i--;
             }
-            if (key == node->keys[i]) {
+            if (i >= 0 && key == node->keys[i]) {
                 success = false; // 중복 키 발견 시
                 return;
             }
             i++;
             if (node->children[i]->size == m - 1 && node->children[i]->isLeaf) {
                 // 자식이 꽉 찼을 경우
-                if (key == node->keys[i]) {
+                if (i >= 0 && i < node->size && key == node->keys[i]) {
                     success = false; // 중복 키 발견 시
                     return;
                 }
-                 
+
                 insertKey(node->children[i], key, success);
                 if (!success) return;
                 splitNode(node, i);
@@ -94,7 +97,7 @@ private:
                     i++;
                 }
                 return;
-            }           
+            }
 
             insertKey(node->children[i], key, success);
             if (!success) return;
@@ -180,12 +183,12 @@ private:
     }
     void bestSibling(BTreeNode*& node, int key, int idx, bool& retribute, bool& success)
     {
-        if (node->children[idx + 1]->size > 1 || !node->children[idx + 1]->isLeaf) {
+        if (idx + 1 <= node->size && node->children[idx + 1]->size > 1 || !node->children[idx + 1]->isLeaf) {
             int succKey = getSuccessor(node->children[idx + 1]);
             node->keys[idx] = succKey;
             deleteKey(node->children[idx + 1], succKey, retribute, success);
         }
-        else if (node->children[idx]->size >= 1 || !node->children[idx]->isLeaf) {
+        else if (idx >= 0 && node->children[idx]->size >= 1 || !node->children[idx]->isLeaf) {
             BTreeNode* pred = node->children[idx];
             while (!pred->isLeaf) {
                 pred = pred->children[pred->size];
@@ -221,11 +224,9 @@ private:
             }
 
             int mergetflag = false;
-            if (node->children[idx]->keys[0] == key && node->children[idx]->size == 1 && node->children[idx]->isLeaf) {
+            if (idx < node->size && node->children[idx]->keys[0] == key && node->children[idx]->size == 1 && node->children[idx]->isLeaf) {
                 if (redistributeKeys(node, idx)) mergetflag = true;
             }
-
-
 
             bool flag = (idx == node->size);
             if ((flag && idx > node->size) || mergetflag) {
@@ -240,7 +241,7 @@ private:
         {
             for(int i =0; i< node->size + 1;i++)
             {
-                if (node->children[i]->size == 0 && node->children[i]->children[0]->size != 0)
+                if (node->children[i] && node->children[i]->size == 0 && node->children[i]->children[0]->size != 0)
                 {
                     redistributeKeys(node,i);
                     retribute = false;
@@ -282,6 +283,9 @@ private:
 
         parent->size--; 
         delete sibling; 
+
+        // 수정 부분: 병합 후 사용하지 않는 child 포인터를 nullptr로 설정
+        parent->children[parent->size + 1] = nullptr; // 추가된 코드
     }
 
     bool redistributeKeys(BTreeNode* parent, int idx) {
