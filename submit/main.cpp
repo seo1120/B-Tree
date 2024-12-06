@@ -11,6 +11,9 @@ public:
     BTreeNode(int maxKeys, bool leaf) {
         keys = new int[maxKeys];
         children = new BTreeNode * [maxKeys + 1];
+        for (int i = 0; i <= maxKeys; i++) {
+        children[i] = nullptr;
+        }
         size = 0;
         isLeaf = leaf;
     }
